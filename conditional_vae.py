@@ -4,7 +4,7 @@ from torch import nn
 import torch.nn.functional as F
 
 
-class ConditionalVAE:
+class ConditionalVAE(nn.Module):
     def __init__(self, latent_dim_size, data_shape, label_shape):
         self.latent_dim_size = latent_dim_size
         self.data_shape = data_shape
