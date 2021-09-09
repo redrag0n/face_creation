@@ -6,59 +6,71 @@ import torch.nn.functional as F
 
 class ConditionalVAE(nn.Module):
     def __init__(self, latent_dim_size, data_shape, label_shape):
+        nn.Module.__init__(self)
         self.latent_dim_size = latent_dim_size
         self.data_shape = data_shape
         self.label_shape = label_shape
+        self.create_architecture()
 
     def create_encoder(self):
         self.conv1 = nn.Conv2d(3, 32, (3, 3), padding='same')
-        self.conv2 = nn.Conv2d(3, 32, (3, 3), padding='same')
+        self.conv2 = nn.Conv2d(32, 32, (3, 3), padding='same')
         self.pool1 = nn.MaxPool2d(2, 2)
 
-        self.conv3 = nn.Conv2d(3, 32, (3, 3), padding='same')
-        self.conv4 = nn.Conv2d(3, 32, (3, 3), padding='same')
+        self.conv3 = nn.Conv2d(32, 32, (3, 3), padding='same')
+        self.conv4 = nn.Conv2d(32, 32, (3, 3), padding='same')
         self.pool2 = nn.MaxPool2d(2, 2)
 
-        self.conv5 = nn.Conv2d(3, 32, (3, 3), padding='same')
-        self.conv6 = nn.Conv2d(3, 32, (3, 3), padding='same')
+        self.conv5 = nn.Conv2d(32, 32, (3, 3), padding='same')
+        self.conv6 = nn.Conv2d(32, 1, (3, 3), padding='same')
         self.pool3 = nn.MaxPool2d(2, 2)
 
-        self.fc1 = nn.Linear(218 * 178 // 64, 500)
+        self.fc1 = nn.Linear(224 * 184 // 64, 500)
         self.fc_label = nn.Linear(self.label_shape, 100)
-        self.fc2 = nn.Linear(500 + self.label_shape, 100)
+        self.fc2 = nn.Linear(500 + 100, 100)
         self.fc3 = nn.Linear(100, self.latent_dim_size * 2)
 
     def create_decoder(self):
         self.fc1_d = nn.Linear(self.latent_dim_size + self.label_shape, 100)
-        self.fc2_d = nn.Linear(100, 500)
-        self.fc3_d = nn.Linear(500, 218 * 178 // 64)
+        self.fc2_d = nn.Linear(100, 200)
+        self.fc3_d = nn.Linear(200, 224 * 184 // 64)
 
         self.unpool1 = nn.Upsample(scale_factor=2, mode='nearest', align_corners=None)
-        self.conv1_d = nn.Conv2d(3, 32, (3, 3), padding='same')
-        self.conv2_d = nn.Conv2d(3, 32, (3, 3), padding='same')
+        self.conv1_d = nn.Conv2d(1, 32, (3, 3), padding='same')
+        self.conv2_d = nn.Conv2d(32, 32, (3, 3), padding='same')
 
         self.unpool2 = nn.Upsample(scale_factor=2, mode='nearest', align_corners=None)
-        self.conv3_d = nn.Conv2d(3, 32, (3, 3), padding='same')
-        self.conv4_d = nn.Conv2d(3, 32, (3, 3), padding='same')
+        self.conv3_d = nn.Conv2d(32, 32, (3, 3), padding='same')
+        self.conv4_d = nn.Conv2d(32, 32, (3, 3), padding='same')
 
         self.unpool3 = nn.Upsample(scale_factor=2, mode='nearest', align_corners=None)
-        self.conv5_d = nn.Conv2d(3, 32, (3, 3), padding='same')
-        self.conv6_d = nn.Conv2d(3, 32, (3, 3), padding='same')
+        self.conv5_d = nn.Conv2d(32, 32, (3, 3), padding='same')
+        self.conv6_d = nn.Conv2d(32, 3, (3, 3), padding='same')
 
     def create_architecture(self):
         self.create_encoder()
         self.create_decoder()
 
     def encode(self, data, label):
+        # print(data.shape)
         res = self.pool1(F.relu(self.conv2(self.conv1(data))))
+        # print(res.shape)
         res = self.pool2(F.relu(self.conv4(self.conv3(res))))
-        res = self.pool3(F.relu(self.conv4(self.conv3(res))))
-        res = self.fc1(torch.flatten(res, 1))
+        # print(res.shape)
+        res = self.pool3(F.relu(self.conv6(self.conv5(res))))
+        # print(res.shape)
+
+        res = torch.flatten(res, start_dim=1)
+        # print('!!!')
+        # print(res.shape)
+        res = self.fc1(res)
+
         label_enc = self.fc_label(label)
 
         res = torch.cat([res, label_enc], dim=1)
         res = self.fc2(F.relu(res))
         res = self.fc3(F.relu(res))
+        # print('encode end', res.shape)
         return res
 
     def decode(self, latent, label):
@@ -66,10 +78,13 @@ class ConditionalVAE(nn.Module):
         res = F.relu(self.fc1_d(res))
         res = F.relu(self.fc2_d(res))
         res = F.relu(self.fc3_d(res))
+        # print(res.shape)
 
+        res = torch.reshape(res, (res.shape[0], 1, 224 // 8, 184 // 8))
         res = self.unpool1(F.relu(self.conv2_d(self.conv1_d(res))))
         res = self.unpool2(F.relu(self.conv4_d(self.conv3_d(res))))
         res = self.unpool3(F.relu(self.conv6_d(self.conv5_d(res))))
+        # print('decode', res.shape)
         return res
 
     def get_cond_t_mean(self, hidden):
@@ -90,7 +105,7 @@ class ConditionalVAE(nn.Module):
         Returns:
             A tf.Tensor of size (batch_size x latent_dim), the samples.
         """
-        epsilon = np.random.standard_normal(t_mean.shape)
+        epsilon = torch.tensor(np.random.standard_normal(t_mean.shape)).float()
         latent_t = t_mean + torch.sqrt(torch.exp(t_log_var)) * epsilon
         return latent_t
 
