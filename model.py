@@ -11,6 +11,8 @@ class Model:
             self.conditional_vae = ConditionalVAE(**cond_vae_params)
         else:
             self.conditional_vae = cond_vae_model
+        print('Model parameters:', sum(p.numel() for p in self.conditional_vae.parameters() if p.requires_grad))
+        self.conditional_vae.to(device)
         self.device = device
         self.model_save_path = model_save_path
 
@@ -35,8 +37,8 @@ class Model:
             print('epoch %d, train loss %.4f , time %.1f sec'
                   % (epoch, train_loss, time.time() - start))
 
-        if test_dataloader is not None:
-            self.test(test_dataloader)
+            if test_dataloader is not None:
+                self.test(test_dataloader)
         if self.model_save_path is not None and save_model:
             torch.save(self.conditional_vae, self.model_save_path)
 
@@ -54,14 +56,15 @@ class Model:
         print(f"Test Avg loss: {test_loss:>8f} \n")
         return test_loss
 
-    def transform(self):
-        pass
+    def transform(self, X, y):
+        return self.conditional_vae(X, y)[0]
 
     def generate_from_t_sampled(self, t_sampled, label):
         return self.conditional_vae.decode(t_sampled, label)
 
     def generate_random_with_label(self, label):
-        t_sampled = np.random.random(self.conditional_vae.latent_dim_size)
+        t_sampled = torch.Tensor([np.random.random(self.conditional_vae.latent_dim_size)]).float()
+        label = torch.Tensor(label).float().to(self.device)
         return self.generate_from_t_sampled(t_sampled, label)
 
     @staticmethod

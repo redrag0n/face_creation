@@ -105,7 +105,10 @@ class ConditionalVAE(nn.Module):
         Returns:
             A tf.Tensor of size (batch_size x latent_dim), the samples.
         """
-        epsilon = torch.tensor(np.random.standard_normal(t_mean.shape)).float()
+        #print(t_mean.is_cuda)
+        device = 'cuda' if t_mean.is_cuda else 'cpu'
+        epsilon = torch.tensor(np.random.standard_normal(t_mean.shape)).float().to(device)
+        #print(epsilon.is_cuda)
         latent_t = t_mean + torch.sqrt(torch.exp(t_log_var)) * epsilon
         return latent_t
 
