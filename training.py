@@ -5,8 +5,8 @@ from torch.utils.data import DataLoader, random_split
 
 #PROJECT_DIR = '/Users/valeriamozarova/PycharmProjects/face_creation'
 PROJECT_DIR = '/root/face_creation'
-#DATA_DIR = f'{PROJECT_DIR}/data'
-DATA_DIR = f'../data'
+DATA_DIR = f'{PROJECT_DIR}/data'
+#DATA_DIR = f'../data'
 
 
 ANNOTATION_DATA_PATH = f'{DATA_DIR}/list_attr_celeba.csv'
@@ -21,9 +21,9 @@ VAE_PARAMS = {
 MODEL_SAVE_PATH = f'{PROJECT_DIR}/models/'
 
 BATCH_SIZE = 32
-MAX_EPOCHS = 10
+MAX_EPOCHS = 2
 LEARNING_RATE = 0.01
-DEVICE = 'cpu'
+DEVICE = 'cuda'
 
 
 def train():
