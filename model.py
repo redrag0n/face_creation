@@ -2,7 +2,7 @@ import time
 import tqdm
 import torch
 import numpy as np
-from conditional_vae import ConditionalVAE1
+from conditional_vae import ConditionalVAE1, ConditionalVAE
 
 
 class Model:
