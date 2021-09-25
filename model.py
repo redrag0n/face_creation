@@ -2,13 +2,13 @@ import time
 import tqdm
 import torch
 import numpy as np
-from conditional_vae import ConditionalVAE1, ConditionalVAE
+from conditional_vae import ConditionalVAE1, ConditionalVAE, ConditionalVAE3
 
 
 class Model:
     def __init__(self, cond_vae_params=None, cond_vae_model=None, model_save_path=None, device='cpu'):
         if cond_vae_params is not None:
-            self.conditional_vae = ConditionalVAE1(**cond_vae_params)
+            self.conditional_vae = ConditionalVAE3(**cond_vae_params)
         else:
             self.conditional_vae = cond_vae_model
         print('Model parameters:', sum(p.numel() for p in self.conditional_vae.parameters() if p.requires_grad))
