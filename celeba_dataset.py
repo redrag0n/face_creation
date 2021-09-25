@@ -13,7 +13,7 @@ from PIL import Image
 
 
 IMG_SHAPE_OLD = (3, 218, 178)
-IMG_SHAPE = (3, 224, 184)
+IMG_SHAPE = (3, 128, 128)
 
 
 class CelebaDataset(Dataset):
@@ -35,6 +35,7 @@ class CelebaDataset(Dataset):
         img_path = os.path.join(self.img_dir, self.img_labels_df.iloc[idx]['id'])
         #image = read_image(img_path) / 255.
         image = Image.open(img_path)
+        image = image.crop((25, 45, IMG_SHAPE_OLD[2] - 25, IMG_SHAPE_OLD[1] - 45))
         label = torch.tensor(self.img_labels_df.iloc[idx][1:]).float()
         if self.transform:
             image = self.transform(image)
@@ -43,9 +44,15 @@ class CelebaDataset(Dataset):
         return image, label
 
 
+# data_transforms = transforms.Compose([
+#     transforms.Pad(padding=((IMG_SHAPE[2] - IMG_SHAPE_OLD[2]) // 2, (IMG_SHAPE[1] - IMG_SHAPE_OLD[1]) // 2),
+#                    padding_mode='edge'),
+#     transforms.ToTensor(),
+#     transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+#     ]
+# )
+
 data_transforms = transforms.Compose([
-    transforms.Pad(padding=((IMG_SHAPE[2] - IMG_SHAPE_OLD[2]) // 2, (IMG_SHAPE[1] - IMG_SHAPE_OLD[1]) // 2),
-                   padding_mode='edge'),
     transforms.ToTensor(),
     transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
     ]
@@ -62,9 +69,9 @@ if __name__ == '__main__':
     # img = np.moveaxis(np.array(dataset[10][0]), 0, -1)
     # print(img.shape)
 
-    # img = np.moveaxis(np.array(dataset[1][0]), 0, -1)
+    img = np.moveaxis(np.array(dataset[1][0]), 0, -1)
     # print(img.shape)
 
-    # plt.imshow(img)
-    # plt.show()
-    print(dataset[0][0])
+    plt.imshow(img)
+    plt.show()
+    print(dataset[0][0].shape)
