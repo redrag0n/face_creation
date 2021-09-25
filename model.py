@@ -31,6 +31,8 @@ class Model:
 
                 # print('conv1', self.conditional_vae.conv1.weight.grad[0])
                 # print('conv5_d', self.conditional_vae.conv5_d.weight.grad[0])
+
+                self.conditional_vae.log_gradients()
                 optimizer.step()
 
                 train_loss += l.cpu().item()
@@ -75,3 +77,18 @@ class Model:
         model = torch.load(model_path, map_location=torch.device('cpu'))
         model.eval()
         return Model(cond_vae_model=model, model_save_path=model_path, device=device)
+
+
+def train(config):
+    from celeba_dataset import CelebaDataset, IMG_SHAPE, data_transforms
+    from torch.utils.data import DataLoader, random_split
+    dataset = CelebaDataset(config.ANNOTATION_DATA_PATH, config.DATA_PATH,
+                            transform=data_transforms)
+    config.VAE_PARAMS['label_shape'] = len(dataset[0][1])
+    train_size = int(len(dataset) * 0.9)
+    test_size = len(dataset) - train_size
+    train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
+    train_dataloader = DataLoader(train_dataset, config.BATCH_SIZE, shuffle=True)
+    test_dataloader = DataLoader(test_dataset, config.BATCH_SIZE, shuffle=True)
+    vae_model = Model(config.VAE_PARAMS, model_save_path=config.MODEL_SAVE_PATH, device=config.DEVICE)
+    vae_model.fit(train_dataloader, test_dataloader, save_model=True, lr=config.LEARNING_RATE, max_epochs=config.MAX_EPOCHS)

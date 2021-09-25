@@ -165,6 +165,10 @@ class ConditionalVAE(nn.Module):
         loss = reconstruction_weight * loss_reconstruction + loss_KL
         return loss
 
+    def log_gradients(self):
+        print('conv1', self.conv1.weight.grad[0])
+        print('conv5_d', self.conv5_d.weight.grad[0])
+
 
 class ConditionalVAE1(nn.Module):
     def __init__(self, latent_dim_size, data_shape, label_shape):
@@ -310,9 +314,13 @@ class ConditionalVAE1(nn.Module):
         loss = reconstruction_weight * loss_reconstruction + loss_KL
         return loss
 
+    def log_gradients(self):
+        print('conv1', self.conv1.weight.grad[0])
+        print('conv5_d', self.conv5_d.weight.grad[0])
+
 
 class ConditionalVAE3(ConditionalVAE):
-    def __init__(self, latent_dim_size, data_shape, label_shape, layer_count=3, base_filters=64, kernel_size=(5, 5)):
+    def __init__(self, latent_dim_size, data_shape, label_shape, layer_count=3, base_filters=32, kernel_size=(5, 5)):
         self.layer_count = layer_count
         self.base_filters = base_filters
         self.kernel_size = kernel_size
@@ -324,8 +332,11 @@ class ConditionalVAE3(ConditionalVAE):
         padding = (ceil((self.kernel_size[0] - 1) / 2), floor((self.kernel_size[0] - 1) / 2),
                    ceil((self.kernel_size[1] - 1) / 2), floor((self.kernel_size[1] - 1) / 2))
         for layer_i in range(self.layer_count):
-            prev_filters = self.base_filters * 2 ** (layer_i - 1) if layer_i > 0 else 3
-            next_filters = self.base_filters * 2 ** layer_i
+            # prev_filters = self.base_filters * 2 ** (layer_i - 1) if layer_i > 0 else 3
+            # next_filters = self.base_filters * 2 ** layer_i
+
+            prev_filters = self.base_filters if layer_i > 0 else 3
+            next_filters = self.base_filters
             self.encoder_layers.append(nn.ConstantPad2d(padding, 0))
             self.encoder_layers.append(nn.Conv2d(prev_filters, next_filters, self.kernel_size,
                                                  stride=(2, 2)))
@@ -334,7 +345,8 @@ class ConditionalVAE3(ConditionalVAE):
 
         self.w = self.data_shape[1] // (2 ** self.layer_count)
         self.h = self.data_shape[2] // (2 ** self.layer_count)
-        self.c = self.base_filters * (2 ** (self.layer_count - 1))
+        #self.c = self.base_filters * (2 ** (self.layer_count - 1))
+        self.c = self.base_filters
         # print(self.w, self.h, self.c)
         self.fc_e_label = nn.Linear(self.label_shape, 100)
         self.fc_e = nn.Linear(self.w * self.c * self.h + 100, self.latent_dim_size * 2)
@@ -352,8 +364,10 @@ class ConditionalVAE3(ConditionalVAE):
         self.fc_d_label = nn.Linear(self.label_shape, 100)
         self.fc_d = nn.Linear(self.latent_dim_size + 100, self.w * self.c * self.h)
         for layer_i in range(self.layer_count - 1, -1, -1):
-            prev_filters = self.base_filters * 2 ** layer_i
-            next_filters = self.base_filters * 2 ** (layer_i - 1) if layer_i > 0 else 3
+            # prev_filters = self.base_filters * 2 ** layer_i
+            # next_filters = self.base_filters * 2 ** (layer_i - 1) if layer_i > 0 else 3
+            prev_filters = self.base_filters
+            next_filters = self.base_filters if layer_i > 0 else 3
             #self.decoder_layers.append(nn.ConstantPad2d(padding, 0))
             # self.decoder_layers.append(nn.ConvTranspose2d(prev_filters, next_filters, self.kernel_size,
             #                                               stride=(2, 2), padding=0))
@@ -388,11 +402,14 @@ class ConditionalVAE3(ConditionalVAE):
         res = torch.cat([res, label], dim=1)
         res = self.fc_d(res)
         res = torch.reshape(res, (-1, self.c, self.w, self.h))
-        print(res.shape)
+        # print(res.shape)
 
         for layer in self.decoder_layers:
             res = layer(res)
-            print(res.shape)
+            # print(res.shape)
 
         return res
 
+    def log_gradients(self):
+        print('encoder', self.encoder_layers[1].weight.grad[0])
+        print('decoder', self.decoder_layers[1].weight.grad[0])
