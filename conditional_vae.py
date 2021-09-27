@@ -159,10 +159,21 @@ class ConditionalVAE(nn.Module):
     @staticmethod
     def loss(x, reconstruction, t_mean, t_log_var, reconstruction_weight=1000):
         loss_reconstruction = torch.mean(nn.functional.mse_loss(x, reconstruction))
+        # print('loss reconstruction', loss_reconstruction.cpu().item())
+        # print('sum x', torch.sum(x).cpu().item())
+        # print('sum reconstruction', torch.sum(reconstruction).cpu().item())
         loss_KL = - torch.mean(
             0.5 * torch.sum(1 + t_log_var - torch.square(t_mean) - torch.exp(t_log_var), dim=1)
         )
+        # #rint('t_log_var', t_log_var, torch.sum(t_log_var).cpu().item())
+        # print('t_log_var', torch.sum(t_log_var).cpu().item())
+        # #print('exp t_log_var', torch.exp(t_log_var), torch.sum(torch.exp(t_log_var)).cpu().item())
+        # print('exp t_log_var', torch.sum(torch.exp(t_log_var)).cpu().item())
+        # #print('t_mean', t_mean)
+        # print('square t_mean', torch.sum(torch.square(t_mean)).cpu().item())
+        # print('KL loss', loss_KL.cpu().item())
         loss = reconstruction_weight * loss_reconstruction + loss_KL
+        #print('loss', loss.cpu().item())
         return loss
 
     def log_gradients(self):
@@ -332,23 +343,24 @@ class ConditionalVAE3(ConditionalVAE):
         padding = (ceil((self.kernel_size[0] - 1) / 2), floor((self.kernel_size[0] - 1) / 2),
                    ceil((self.kernel_size[1] - 1) / 2), floor((self.kernel_size[1] - 1) / 2))
         for layer_i in range(self.layer_count):
-            # prev_filters = self.base_filters * 2 ** (layer_i - 1) if layer_i > 0 else 3
-            # next_filters = self.base_filters * 2 ** layer_i
+            prev_filters = self.base_filters * 2 ** (layer_i - 1) if layer_i > 0 else 3
+            next_filters = self.base_filters * 2 ** layer_i
 
-            prev_filters = self.base_filters if layer_i > 0 else 3
-            next_filters = self.base_filters
+            # prev_filters = self.base_filters if layer_i > 0 else 3
+            # next_filters = self.base_filters
             self.encoder_layers.append(nn.ConstantPad2d(padding, 0))
             self.encoder_layers.append(nn.Conv2d(prev_filters, next_filters, self.kernel_size,
                                                  stride=(2, 2)))
             self.encoder_layers.append(torch.nn.BatchNorm2d(next_filters))
             self.encoder_layers.append(torch.nn.ReLU())
-
+        self.encoder_layers = nn.ModuleList(self.encoder_layers)
         self.w = self.data_shape[1] // (2 ** self.layer_count)
         self.h = self.data_shape[2] // (2 ** self.layer_count)
-        #self.c = self.base_filters * (2 ** (self.layer_count - 1))
-        self.c = self.base_filters
+        self.c = self.base_filters * (2 ** (self.layer_count - 1))
+        #self.c = self.base_filters
         # print(self.w, self.h, self.c)
         self.fc_e_label = nn.Linear(self.label_shape, 100)
+        self.bn_e_label = torch.nn.BatchNorm1d(100)
         self.fc_e = nn.Linear(self.w * self.c * self.h + 100, self.latent_dim_size * 2)
 
     def create_decoder(self):
@@ -362,51 +374,55 @@ class ConditionalVAE3(ConditionalVAE):
         # c = self.base_filters * (2 ** (self.layer_count - 1))
 
         self.fc_d_label = nn.Linear(self.label_shape, 100)
+        self.bn_d_label = torch.nn.BatchNorm1d(100)
         self.fc_d = nn.Linear(self.latent_dim_size + 100, self.w * self.c * self.h)
+        self.bn_d = torch.nn.BatchNorm1d(self.w * self.c * self.h)
         for layer_i in range(self.layer_count - 1, -1, -1):
-            # prev_filters = self.base_filters * 2 ** layer_i
-            # next_filters = self.base_filters * 2 ** (layer_i - 1) if layer_i > 0 else 3
-            prev_filters = self.base_filters
-            next_filters = self.base_filters if layer_i > 0 else 3
+            prev_filters = self.base_filters * 2 ** layer_i
+            next_filters = self.base_filters * 2 ** (layer_i - 1) if layer_i > 0 else 3
+            # prev_filters = self.base_filters
+            # next_filters = self.base_filters if layer_i > 0 else 3
             #self.decoder_layers.append(nn.ConstantPad2d(padding, 0))
-            # self.decoder_layers.append(nn.ConvTranspose2d(prev_filters, next_filters, self.kernel_size,
-            #                                               stride=(2, 2), padding=0))
+            self.decoder_layers.append(nn.ConvTranspose2d(prev_filters, next_filters, self.kernel_size,
+                                                          stride=(2, 2), padding=ceil((self.kernel_size[0] - 1) / 2),
+                                                          output_padding=1))
             #self.decoder_layers.append(nn.Conv2d(prev_filters, next_filters, self.kernel_size, stride=(2, 2), padding=ceil((self.kernel_size[0] - 1) / 2)))
-            self.decoder_layers.append(nn.ConstantPad2d(padding, 0))
-            self.decoder_layers.append(nn.Conv2d(prev_filters, next_filters, self.kernel_size, padding=0))
-            self.decoder_layers.append(nn.Upsample(scale_factor=2, mode='nearest', align_corners=None))
+            # self.decoder_layers.append(nn.ConstantPad2d(padding, 0))
+            # self.decoder_layers.append(nn.Conv2d(prev_filters, next_filters, self.kernel_size, padding=0))
+            # self.decoder_layers.append(nn.Upsample(scale_factor=2, mode='nearest', align_corners=None))
             #self.decoder_layers.append(nn.ConstantPad2d(padding, 0))
             if layer_i != 0:
                 self.decoder_layers.append(torch.nn.BatchNorm2d(next_filters))
                 self.decoder_layers.append(torch.nn.ReLU())
+        self.decoder_layers = nn.ModuleList(self.decoder_layers)
 
     def encode(self, data, label):
         res = data
-        # print(res.shape)
+        #print(res.shape)
         for layer in self.encoder_layers:
-            # print(layer)
+            #print(layer)
             res = layer(res)
-            # print(res.shape)
+            #print(res.shape)
 
         res = torch.flatten(res, start_dim=1)
 
-        label_enc = self.fc_e_label(label)
+        label_enc = F.relu(self.bn_e_label(self.fc_e_label(label)))
 
         res = torch.cat([res, label_enc], dim=1)
-        res = self.fc_e(F.relu(res))
+        res = self.fc_e(res)
         return res
 
     def decode(self, latent, label):
-        label = self.fc_d_label(label)
+        label = F.relu(self.bn_e_label(self.fc_d_label(label)))
         res = latent
         res = torch.cat([res, label], dim=1)
-        res = self.fc_d(res)
+        res = F.relu(self.bn_d(self.fc_d(res)))
         res = torch.reshape(res, (-1, self.c, self.w, self.h))
-        # print(res.shape)
+        #print(res.shape)
 
         for layer in self.decoder_layers:
             res = layer(res)
-            # print(res.shape)
+            #print(res.shape)
 
         return res
 
