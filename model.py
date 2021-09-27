@@ -6,7 +6,8 @@ from conditional_vae import ConditionalVAE1, ConditionalVAE, ConditionalVAE3
 
 
 class Model:
-    def __init__(self, cond_vae_params=None, cond_vae_model=None, model_save_path=None, device='cpu'):
+    def __init__(self, cond_vae_params=None, cond_vae_model=None, model_save_path=None, device='cpu',
+                 reconstruction_weight=1000):
         if cond_vae_params is not None:
             self.conditional_vae = ConditionalVAE3(**cond_vae_params)
         else:
@@ -15,6 +16,7 @@ class Model:
         self.conditional_vae.to(device)
         self.device = device
         self.model_save_path = model_save_path
+        self.reconstruction_weight = reconstruction_weight
 
     def fit(self, train_dataloader, test_dataloader=None, max_epochs=10, lr=0.01, save_model=False):
         optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, self.conditional_vae.parameters()), lr=lr, weight_decay=0.0001)
@@ -25,17 +27,18 @@ class Model:
                 X, y = X.to(self.device), y.to(self.device)
                 optimizer.zero_grad()
                 reconstructed, t_mean, t_log_var = self.conditional_vae(X, y)
-                l = self.conditional_vae.__class__.loss(X, reconstructed, t_mean, t_log_var).to(self.device)
+                l = self.conditional_vae.__class__.loss(X, reconstructed, t_mean, t_log_var, self.reconstruction_weight).to(self.device)
 
+                #train_loss += l.cpu().item()
                 l.backward()
 
                 # print('conv1', self.conditional_vae.conv1.weight.grad[0])
                 # print('conv5_d', self.conditional_vae.conv5_d.weight.grad[0])
 
-                self.conditional_vae.log_gradients()
+                #self.conditional_vae.log_gradients()
                 optimizer.step()
-
                 train_loss += l.cpu().item()
+
                 n += X.shape[0]
 
             train_loss /= n
@@ -55,7 +58,7 @@ class Model:
             for X, y in test_dataloader:
                 X, y = X.to(self.device), y.to(self.device)
                 reconstructed, t_mean, t_log_var = self.conditional_vae(X, y)
-                test_loss += self.conditional_vae.__class__.loss(X, reconstructed, t_mean, t_log_var).to(self.device).cpu().item()
+                test_loss += self.conditional_vae.__class__.loss(X, reconstructed, t_mean, t_log_var, self.reconstruction_weight).to(self.device).cpu().item()
                 n += X.shape[0]
         test_loss /= n
         print(f"Test Avg loss: {test_loss:>8f} \n")
@@ -90,5 +93,6 @@ def train(config):
     train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
     train_dataloader = DataLoader(train_dataset, config.BATCH_SIZE, shuffle=True)
     test_dataloader = DataLoader(test_dataset, config.BATCH_SIZE, shuffle=True)
-    vae_model = Model(config.VAE_PARAMS, model_save_path=config.MODEL_SAVE_PATH, device=config.DEVICE)
+    vae_model = Model(config.VAE_PARAMS, model_save_path=config.MODEL_SAVE_PATH, device=config.DEVICE,
+                      reconstruction_weight=config.RECONSTRUCTION_WEIGHT)
     vae_model.fit(train_dataloader, test_dataloader, save_model=True, lr=config.LEARNING_RATE, max_epochs=config.MAX_EPOCHS)
