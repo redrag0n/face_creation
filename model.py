@@ -1,7 +1,11 @@
 import time
+
+import matplotlib.pyplot as plt
 import tqdm
 import torch
+import json
 import numpy as np
+import pandas as pd
 from conditional_vae import ConditionalVAE1, ConditionalVAE, ConditionalVAE3
 
 
@@ -9,6 +13,9 @@ class Model:
     def __init__(self, cond_vae_params=None, cond_vae_model=None, model_save_path=None, device='cpu',
                  reconstruction_weight=1000):
         if cond_vae_params is not None:
+            if model_save_path is not None:
+                with open(model_save_path + '/' + 'params.json', mode='w') as out:
+                    json.dump(cond_vae_params, out)
             self.conditional_vae = ConditionalVAE3(**cond_vae_params)
         else:
             self.conditional_vae = cond_vae_model
@@ -19,6 +26,8 @@ class Model:
         self.reconstruction_weight = reconstruction_weight
 
     def fit(self, train_dataloader, test_dataloader=None, max_epochs=10, lr=0.01, save_model=False):
+        train_losses = list()
+        test_losses = list()
         optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, self.conditional_vae.parameters()), lr=lr, weight_decay=0.0001)
         for epoch in range(max_epochs):
             self.conditional_vae.train()
@@ -26,7 +35,7 @@ class Model:
             for X, y in tqdm.tqdm(train_dataloader, ncols=50):
                 X, y = X.to(self.device), y.to(self.device)
                 optimizer.zero_grad()
-                reconstructed, t_mean, t_log_var = self.conditional_vae(X, y)
+                reconstructed, t_mean, t_log_var, _ = self.conditional_vae(X, y)
                 l = self.conditional_vae.__class__.loss(X, reconstructed, t_mean, t_log_var, self.reconstruction_weight).to(self.device)
 
                 #train_loss += l.cpu().item()
@@ -42,13 +51,25 @@ class Model:
                 n += X.shape[0]
 
             train_loss /= n
+            train_losses.append(train_loss)
             print('epoch %d, train loss %.4f , time %.1f sec'
                   % (epoch, train_loss, time.time() - start))
 
             if test_dataloader is not None:
-                self.test(test_dataloader)
+                test_losses.append(self.test(test_dataloader))
             if self.model_save_path is not None and save_model:
                 torch.save(self.conditional_vae, self.model_save_path + '/' + 'epoch' + str(epoch))
+                metric_df = pd.DataFrame({'epoch': list(range(epoch + 1)), 'train': train_losses}).set_index('epoch')
+                if test_dataloader is not None:
+                    metric_df['test'] = test_losses
+                metric_df.to_excel(self.model_save_path + '/' + 'metrics.xlsx')
+
+                plt.figure(figsize=(10, 10))
+                plt.plot(list(range(epoch + 1)), train_losses, color='blue', label='train')
+                if test_dataloader is not None:
+                    plt.plot(list(range(epoch + 1)), test_losses, color='green', label='test')
+                plt.legend()
+                plt.savefig(self.model_save_path + '/' + 'metrics.png', dpi=300, bbox_inches='tight')
 
     def test(self, test_dataloader):
         self.conditional_vae.eval()
@@ -57,7 +78,7 @@ class Model:
         with torch.no_grad():
             for X, y in test_dataloader:
                 X, y = X.to(self.device), y.to(self.device)
-                reconstructed, t_mean, t_log_var = self.conditional_vae(X, y)
+                reconstructed, t_mean, t_log_var, _ = self.conditional_vae(X, y)
                 test_loss += self.conditional_vae.__class__.loss(X, reconstructed, t_mean, t_log_var, self.reconstruction_weight).to(self.device).cpu().item()
                 n += X.shape[0]
         test_loss /= n
@@ -71,7 +92,7 @@ class Model:
         return self.conditional_vae.decode(t_sampled, label)
 
     def generate_random_with_label(self, label):
-        t_sampled = torch.Tensor([np.random.random(self.conditional_vae.latent_dim_size)]).float()
+        t_sampled = torch.Tensor([np.random.normal(size=self.conditional_vae.latent_dim_size)]).float()
         label = torch.Tensor(label).float().to(self.device)
         return self.generate_from_t_sampled(t_sampled, label)
 

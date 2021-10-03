@@ -154,7 +154,7 @@ class ConditionalVAE(nn.Module):
         cond_t_log_var = self.get_cond_t_log_var(hidden)
         t_sampled = self.sampling(cond_t_mean, cond_t_log_var)
         decoded = self.decode(t_sampled, label)
-        return decoded, cond_t_mean, cond_t_log_var
+        return decoded, cond_t_mean, cond_t_log_var, t_sampled
 
     @staticmethod
     def loss(x, reconstruction, t_mean, t_log_var, reconstruction_weight=1000):
@@ -187,6 +187,7 @@ class ConditionalVAE1(nn.Module):
         self.latent_dim_size = latent_dim_size
         self.data_shape = data_shape
         self.label_shape = label_shape
+        self.label_resize_shape = label_shape
         self.create_architecture()
 
     def create_encoder(self):
@@ -331,10 +332,13 @@ class ConditionalVAE1(nn.Module):
 
 
 class ConditionalVAE3(ConditionalVAE):
-    def __init__(self, latent_dim_size, data_shape, label_shape, layer_count=3, base_filters=32, kernel_size=(5, 5)):
+    def __init__(self, latent_dim_size, data_shape, label_shape, layer_count=3, base_filters=32, kernel_size=(5, 5),
+                 label_resize_shape=100, use_add_layer=False):
         self.layer_count = layer_count
         self.base_filters = base_filters
         self.kernel_size = kernel_size
+        self.label_resize_shape = label_resize_shape
+        self.use_add_layer = use_add_layer
         self.encoder_layers = list()
         self.decoder_layers = list()
         ConditionalVAE.__init__(self, latent_dim_size, data_shape, label_shape)
@@ -349,6 +353,8 @@ class ConditionalVAE3(ConditionalVAE):
             # prev_filters = self.base_filters if layer_i > 0 else 3
             # next_filters = self.base_filters
             self.encoder_layers.append(nn.ConstantPad2d(padding, 0))
+            self.encoder_layers.append(nn.Conv2d(prev_filters, prev_filters, self.kernel_size,
+                                                 padding='same'))
             self.encoder_layers.append(nn.Conv2d(prev_filters, next_filters, self.kernel_size,
                                                  stride=(2, 2)))
             self.encoder_layers.append(torch.nn.BatchNorm2d(next_filters))
@@ -359,9 +365,9 @@ class ConditionalVAE3(ConditionalVAE):
         self.c = self.base_filters * (2 ** (self.layer_count - 1))
         #self.c = self.base_filters
         # print(self.w, self.h, self.c)
-        self.fc_e_label = nn.Linear(self.label_shape, 100)
-        self.bn_e_label = torch.nn.BatchNorm1d(100)
-        self.fc_e = nn.Linear(self.w * self.c * self.h + 100, self.latent_dim_size * 2)
+        self.fc_e_label = nn.Linear(self.label_shape, self.label_resize_shape)
+        self.bn_e_label = torch.nn.BatchNorm1d(self.label_resize_shape)
+        self.fc_e = nn.Linear(self.w * self.c * self.h + self.label_resize_shape, self.latent_dim_size * 2)
 
     def create_decoder(self):
         padding = (ceil((self.kernel_size[0] - 1) / 2), floor((self.kernel_size[0] - 1) / 2),
@@ -373,9 +379,9 @@ class ConditionalVAE3(ConditionalVAE):
         # h = self.data_shape[2] // (2 ** self.layer_count)
         # c = self.base_filters * (2 ** (self.layer_count - 1))
 
-        self.fc_d_label = nn.Linear(self.label_shape, 100)
-        self.bn_d_label = torch.nn.BatchNorm1d(100)
-        self.fc_d = nn.Linear(self.latent_dim_size + 100, self.w * self.c * self.h)
+        self.fc_d_label = nn.Linear(self.label_shape, self.label_resize_shape)
+        self.bn_d_label = torch.nn.BatchNorm1d(self.label_resize_shape)
+        self.fc_d = nn.Linear(self.latent_dim_size + self.label_resize_shape, self.w * self.c * self.h)
         self.bn_d = torch.nn.BatchNorm1d(self.w * self.c * self.h)
         for layer_i in range(self.layer_count - 1, -1, -1):
             prev_filters = self.base_filters * 2 ** layer_i
@@ -383,6 +389,8 @@ class ConditionalVAE3(ConditionalVAE):
             # prev_filters = self.base_filters
             # next_filters = self.base_filters if layer_i > 0 else 3
             #self.decoder_layers.append(nn.ConstantPad2d(padding, 0))
+            self.decoder_layers.append(nn.ConvTranspose2d(prev_filters, prev_filters, self.kernel_size,
+                                                          padding=ceil((self.kernel_size[0] - 1) / 2)))
             self.decoder_layers.append(nn.ConvTranspose2d(prev_filters, next_filters, self.kernel_size,
                                                           stride=(2, 2), padding=ceil((self.kernel_size[0] - 1) / 2),
                                                           output_padding=1))
