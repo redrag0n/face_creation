@@ -98,9 +98,9 @@ class Model:
 
     def generate_from_t_sampled(self, t_sampled, label):
         label = torch.Tensor(label).float().to(self.device)
-        print('label', label.shape)
+        #print('label', label.shape)
         t_sampled = torch.Tensor(t_sampled).float()
-        print('t_sampled', t_sampled.shape)
+        #print('t_sampled', t_sampled.shape)
         return sigmoid(self.conditional_vae.decode(t_sampled, label).detach().numpy())
 
     def generate_random_with_label(self, label):
