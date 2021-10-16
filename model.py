@@ -9,6 +9,10 @@ import pandas as pd
 from conditional_vae import ConditionalVAE1, ConditionalVAE, ConditionalVAE3
 
 
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
+
+
 class Model:
     def __init__(self, cond_vae_params=None, cond_vae_model=None, model_save_path=None, device='cpu',
                  reconstruction_weight=1000):
@@ -20,6 +24,10 @@ class Model:
         else:
             self.conditional_vae = cond_vae_model
         print('Model parameters:', sum(p.numel() for p in self.conditional_vae.parameters() if p.requires_grad))
+        if torch.cuda.device_count() > 1:
+            print("Let's use", torch.cuda.device_count(), "GPUs!")
+            # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
+            self.conditional_vae = torch.nn.DataParallel(self.conditional_vae)
         self.conditional_vae.to(device)
         self.device = device
         self.model_save_path = model_save_path
@@ -89,11 +97,14 @@ class Model:
         return self.conditional_vae(X, y)[0]
 
     def generate_from_t_sampled(self, t_sampled, label):
-        return self.conditional_vae.decode(t_sampled, label)
+        label = torch.Tensor(label).float().to(self.device)
+        print('label', label.shape)
+        t_sampled = torch.Tensor(t_sampled).float()
+        print('t_sampled', t_sampled.shape)
+        return sigmoid(self.conditional_vae.decode(t_sampled, label).detach().numpy())
 
     def generate_random_with_label(self, label):
-        t_sampled = torch.Tensor([np.random.normal(size=self.conditional_vae.latent_dim_size)]).float()
-        label = torch.Tensor(label).float().to(self.device)
+        t_sampled = np.random.normal(size=(len(label), self.conditional_vae.latent_dim_size))
         return self.generate_from_t_sampled(t_sampled, label)
 
     @staticmethod
