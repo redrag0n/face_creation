@@ -6,7 +6,7 @@ import torch
 import json
 import numpy as np
 import pandas as pd
-from conditional_vae import ConditionalVAE1, ConditionalVAE, ConditionalVAE3
+from conditional_vae import ConditionalVAE
 
 
 def sigmoid(x):
@@ -20,7 +20,7 @@ class Model:
             if model_save_path is not None:
                 with open(model_save_path + '/' + 'params.json', mode='w') as out:
                     json.dump(cond_vae_params, out)
-            self.conditional_vae = ConditionalVAE3(**cond_vae_params)
+            self.conditional_vae = ConditionalVAE(**cond_vae_params)
         else:
             self.conditional_vae = cond_vae_model
         print('Model parameters:', sum(p.numel() for p in self.conditional_vae.parameters() if p.requires_grad))
@@ -32,11 +32,17 @@ class Model:
         self.device = device
         self.model_save_path = model_save_path
         self.reconstruction_weight = reconstruction_weight
+        self.example_count = 25
 
     def fit(self, train_dataloader, test_dataloader=None, max_epochs=10, lr=0.01, save_model=False):
         train_losses = list()
         test_losses = list()
         optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, self.conditional_vae.parameters()), lr=lr, weight_decay=0.0001)
+
+        self._test_latent = np.random.normal(size=(self.example_count, self.conditional_vae.latent_dim_size))
+        self._test_labels = np.random.randint(0, 2, (self.example_count, self.conditional_vae.label_shape))
+
+        #self.save_model_data(-1, test_dataloader, test_losses, train_losses)
         for epoch in range(max_epochs):
             self.conditional_vae.train()
             train_loss, n, start = 0.0, 0, time.time()
@@ -45,13 +51,8 @@ class Model:
                 optimizer.zero_grad()
                 reconstructed, t_mean, t_log_var, _ = self.conditional_vae(X, y)
                 l = self.conditional_vae.__class__.loss(X, reconstructed, t_mean, t_log_var, self.reconstruction_weight).to(self.device)
-
                 #train_loss += l.cpu().item()
                 l.backward()
-
-                # print('conv1', self.conditional_vae.conv1.weight.grad[0])
-                # print('conv5_d', self.conditional_vae.conv5_d.weight.grad[0])
-
                 #self.conditional_vae.log_gradients()
                 optimizer.step()
                 train_loss += l.cpu().item()
@@ -66,18 +67,30 @@ class Model:
             if test_dataloader is not None:
                 test_losses.append(self.test(test_dataloader))
             if self.model_save_path is not None and save_model:
-                torch.save(self.conditional_vae, self.model_save_path + '/' + 'epoch' + str(epoch))
-                metric_df = pd.DataFrame({'epoch': list(range(epoch + 1)), 'train': train_losses}).set_index('epoch')
-                if test_dataloader is not None:
-                    metric_df['test'] = test_losses
-                metric_df.to_excel(self.model_save_path + '/' + 'metrics.xlsx')
+                self.save_model_data(epoch, test_dataloader, test_losses, train_losses)
 
-                plt.figure(figsize=(10, 10))
-                plt.plot(list(range(epoch + 1)), train_losses, color='blue', label='train')
-                if test_dataloader is not None:
-                    plt.plot(list(range(epoch + 1)), test_losses, color='green', label='test')
-                plt.legend()
-                plt.savefig(self.model_save_path + '/' + 'metrics.png', dpi=300, bbox_inches='tight')
+    def save_model_data(self, epoch, test_dataloader, test_losses, train_losses):
+        torch.save(self.conditional_vae, self.model_save_path + '/' + 'epoch' + str(epoch))
+        metric_df = pd.DataFrame({'epoch': list(range(epoch + 1)), 'train': train_losses}).set_index('epoch')
+        if test_dataloader is not None:
+            metric_df['test'] = test_losses
+        metric_df.to_excel(self.model_save_path + '/' + 'metrics.xlsx')
+
+        plt.figure(figsize=(10, 10))
+        plt.plot(list(range(epoch + 1)), train_losses, color='blue', label='train')
+        if test_dataloader is not None:
+            plt.plot(list(range(epoch + 1)), test_losses, color='green', label='test')
+        plt.legend()
+        plt.savefig(self.model_save_path + '/' + 'metrics.png', dpi=300, bbox_inches='tight')
+
+        generated = self.generate_from_t_sampled(self._test_latent, self._test_labels)
+        fig, ax = plt.subplots(5, 5, figsize=(15, 15))
+        for i in range(5):
+            for j in range(5):
+                ax[i, j].imshow(np.moveaxis(generated[i * 5 + j], 0, -1))
+                ax[i, j].axis('off')
+        plt.savefig(self.model_save_path + '/' + 'generated' + str(epoch) + '.png')
+        plt.show()
 
     def test(self, test_dataloader):
         self.conditional_vae.eval()
@@ -101,7 +114,7 @@ class Model:
         #print('label', label.shape)
         t_sampled = torch.Tensor(t_sampled).float()
         #print('t_sampled', t_sampled.shape)
-        return sigmoid(self.conditional_vae.decode(t_sampled, label).detach().numpy())
+        return sigmoid(self.conditional_vae.decoder(t_sampled, label).detach().numpy())
 
     def generate_random_with_label(self, label):
         t_sampled = np.random.normal(size=(len(label), self.conditional_vae.latent_dim_size))
