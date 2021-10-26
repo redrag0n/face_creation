@@ -43,7 +43,7 @@ class Encoder(nn.Module):
         # print(self.w, self.h, self.c)
         self.fc_e_label = nn.Linear(self.label_shape, self.label_resize_shape)
         self.bn_e_label = torch.nn.BatchNorm1d(self.label_resize_shape)
-        self.fc_e = nn.Linear(self.w * self.c * self.h + self.label_resize_shape, self.latent_dim_size * 2)
+        self.fc_e = nn.Linear(self.w * self.c * self.h + self.label_resize_shape, int(self.latent_dim_size * 2))
 
     def forward(self, data, label):
         res = data
@@ -134,8 +134,10 @@ class ConditionalVAE(nn.Module):
         self.create_architecture()
 
     def create_architecture(self):
-        self.encoder = Encoder(self.latent_dim_size, self.data_shape, self.label_shape)
-        self.decoder = Decoder(self.latent_dim_size, self.data_shape, self.label_shape)
+        self.encoder = Encoder(self.latent_dim_size, self.data_shape, self.label_shape, self.layer_count, self.base_filters, self.kernel_size,
+                                     self.label_resize_shape, self.use_add_layer)
+        self.decoder = Decoder(self.latent_dim_size, self.data_shape, self.label_shape, self.layer_count, self.base_filters, self.kernel_size,
+                               self.label_resize_shape, self.use_add_layer)
 
     def get_cond_t_mean(self, hidden):
         return hidden[:, :self.latent_dim_size]

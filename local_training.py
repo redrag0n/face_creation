@@ -1,5 +1,5 @@
 from configs import local_config
-from model import train
+from model import train_vae
 
 
-train(local_config)
+train_vae(local_config)

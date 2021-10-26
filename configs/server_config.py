@@ -8,12 +8,22 @@ DATA_DIR = f'{PROJECT_DIR}/data'
 ANNOTATION_DATA_PATH = f'{DATA_DIR}/list_attr_celeba.csv'
 DATA_PATH = f'{DATA_DIR}/img_align_celeba'
 
+# VAE_PARAMS = {  # good for vae
+#     'latent_dim_size': 32,
+#     'data_shape': IMG_SHAPE,
+#     'label_shape': None,
+#     'layer_count': 4,
+#     'base_filters': 64,
+#     'kernel_size': (5, 5),
+#     'label_resize_shape': 64,
+#     'use_add_layer': True
+# }
 VAE_PARAMS = {
     'latent_dim_size': 32,
     'data_shape': IMG_SHAPE,
     'label_shape': None,
     'layer_count': 4,
-    'base_filters': 64,
+    'base_filters': 32,
     'kernel_size': (5, 5),
     'label_resize_shape': 64,
     'use_add_layer': True

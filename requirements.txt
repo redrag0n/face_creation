@@ -8,5 +8,4 @@ jupyter
 matplotlib
 tqdm
 xlrd
-GPy
-GpyOpt
+openpyxl
