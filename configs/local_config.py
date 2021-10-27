@@ -20,6 +20,7 @@ VAE_PARAMS = {
     'use_add_layer': True
 }
 RECONSTRUCTION_WEIGHT = 1000
+USE_LABELS = False
 
 MODEL_SAVE_PATH = f'{PROJECT_DIR}/models/'
 

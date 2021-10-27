@@ -41,11 +41,14 @@ class Encoder(nn.Module):
         self.c = self.base_filters * (2 ** (self.layer_count - 1))
         # self.c = self.base_filters
         # print(self.w, self.h, self.c)
-        self.fc_e_label = nn.Linear(self.label_shape, self.label_resize_shape)
-        self.bn_e_label = torch.nn.BatchNorm1d(self.label_resize_shape)
-        self.fc_e = nn.Linear(self.w * self.c * self.h + self.label_resize_shape, int(self.latent_dim_size * 2))
+        if self.label_shape is not None:
+            self.fc_e_label = nn.Linear(self.label_shape, self.label_resize_shape)
+            self.bn_e_label = torch.nn.BatchNorm1d(self.label_resize_shape)
+            self.fc_e = nn.Linear(self.w * self.c * self.h + self.label_resize_shape, int(self.latent_dim_size * 2))
+        else:
+            self.fc_e = nn.Linear(self.w * self.c * self.h, int(self.latent_dim_size * 2))
 
-    def forward(self, data, label):
+    def forward(self, data, label=None):
         res = data
         # print(res.shape)
         for layer in self.encoder_layers:
@@ -55,9 +58,9 @@ class Encoder(nn.Module):
 
         res = torch.flatten(res, start_dim=1)
 
-        label_enc = F.relu(self.bn_e_label(self.fc_e_label(label)))
-
-        res = torch.cat([res, label_enc], dim=1)
+        if self.label_shape is not None:
+            label_enc = F.relu(self.bn_e_label(self.fc_e_label(label)))
+            res = torch.cat([res, label_enc], dim=1)
         res = self.fc_e(res)
         return res
 
@@ -85,9 +88,12 @@ class Decoder(nn.Module):
         self.h = self.data_shape[2] // (2 ** self.layer_count)
         self.c = self.base_filters * (2 ** (self.layer_count - 1))
 
-        self.fc_d_label = nn.Linear(self.label_shape, self.label_resize_shape)
-        self.bn_d_label = torch.nn.BatchNorm1d(self.label_resize_shape)
-        self.fc_d = nn.Linear(self.latent_dim_size + self.label_resize_shape, self.w * self.c * self.h)
+        if self.label_shape is not None:
+            self.fc_d_label = nn.Linear(self.label_shape, self.label_resize_shape)
+            self.bn_d_label = torch.nn.BatchNorm1d(self.label_resize_shape)
+            self.fc_d = nn.Linear(self.latent_dim_size + self.label_resize_shape, self.w * self.c * self.h)
+        else:
+            self.fc_d = nn.Linear(self.latent_dim_size, self.w * self.c * self.h)
         self.bn_d = torch.nn.BatchNorm1d(self.w * self.c * self.h)
         for layer_i in range(self.layer_count - 1, -1, -1):
             prev_filters = self.base_filters * 2 ** layer_i
@@ -104,10 +110,11 @@ class Decoder(nn.Module):
                 self.decoder_layers.append(torch.nn.ReLU())
         self.decoder_layers = nn.ModuleList(self.decoder_layers)
 
-    def forward(self, latent, label):
-        label = F.relu(self.bn_d_label(self.fc_d_label(label)))
+    def forward(self, latent, label=None):
         res = latent
-        res = torch.cat([res, label], dim=1)
+        if self.label_shape is not None:
+            label = F.relu(self.bn_d_label(self.fc_d_label(label)))
+            res = torch.cat([res, label], dim=1)
         res = F.relu(self.bn_d(self.fc_d(res)))
         res = torch.reshape(res, (-1, self.c, self.w, self.h))
         # print(res.shape)

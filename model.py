@@ -42,7 +42,10 @@ class VaeModel:
         optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, self.conditional_vae.parameters()), lr=lr, weight_decay=0.0001)
 
         self._test_latent = np.random.normal(size=(self.example_count, self.conditional_vae.latent_dim_size))
-        self._test_labels = np.random.randint(0, 2, (self.example_count, self.conditional_vae.label_shape))
+        if self.conditional_vae.label_shape is not None:
+            self._test_labels = np.random.randint(0, 2, (self.example_count, self.conditional_vae.label_shape))
+        else:
+            self._test_labels = None
 
         self.save_model_data(-1, test_dataloader, test_losses, train_losses)
         for epoch in range(max_epochs):
@@ -112,7 +115,10 @@ class VaeModel:
         return self.conditional_vae(X, y)[0]
 
     def generate_from_t_sampled(self, t_sampled, label):
-        label = torch.Tensor(label).float().to(self.device)
+        if self.conditional_vae.label_shape is not None:
+            label = torch.Tensor(label).float().to(self.device)
+        else:
+            label = None
         #print('label', label.shape)
         t_sampled = torch.Tensor(t_sampled).float().to(self.device)
         #print('t_sampled', t_sampled.shape)
@@ -134,7 +140,8 @@ def train_vae(config):
     from torch.utils.data import DataLoader, random_split
     dataset = CelebaDataset(config.ANNOTATION_DATA_PATH, config.DATA_PATH,
                             transform=data_transforms)
-    config.VAE_PARAMS['label_shape'] = len(dataset[0][1])
+    if config.USE_LABELS:
+        config.VAE_PARAMS['label_shape'] = len(dataset[0][1])
     train_size = int(len(dataset) * 0.9)
     test_size = len(dataset) - train_size
     train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
@@ -176,7 +183,10 @@ class GanModel:
         d_optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, self.gan.discriminator.parameters()), lr=lr, weight_decay=0.0001)
 
         self._test_noise = np.random.normal(size=(self.example_count, self.gan.latent_dim_size))
-        self._test_labels = np.random.randint(0, 2, (self.example_count, self.gan.label_shape))
+        if self.gan.label_shape is not None:
+            self._test_labels = np.random.randint(0, 2, (self.example_count, self.gan.label_shape))
+        else:
+            self._test_labels = None
 
         self.save_model_data(-1, test_dataloader, d_losses, g_losses, d_xs, d_z1s, d_z2s)
         for epoch in range(max_epochs):
@@ -195,30 +205,38 @@ class GanModel:
                 X, y = X.to(self.device), y.to(self.device)
                 b_size = X.shape[0]
                 d_optimizer.zero_grad()
-                d_predicted = self.gan.discriminator(X, y)
-                true_ = torch.full((b_size,), 1, dtype=torch.float, device=self.device)
-                d_loss_true = self.gan.__class__.loss(d_predicted, true_).to(self.device)
-                d_loss_true.backward()
-                d_optimizer.step()
-                d_xs.append(d_predicted.mean().cpu().item())  # average discriminator prediction on true images
+                true_predicted = self.gan.discriminator(X, y)
+                d_xs.append(true_predicted.mean().cpu().item())  # average discriminator prediction on true images
+
+                # true_ = torch.full((b_size,), 1, dtype=torch.float, device=self.device)
+                # d_loss_true = self.gan.__class__.loss(d_predicted, true_).to(self.device)
+                # d_loss_true.backward()
+                # d_optimizer.step()
 
                 ## Train with all-fake batch
                 # Generate batch of latent vectors
                 #noise = torch.randn(b_size, self.gan.latent_dim_size, 1, 1, device=self.device)
                 noise = torch.tensor(np.random.standard_normal((b_size, self.gan.latent_dim_size)), requires_grad=False).float().to(self.device)
-                random_labels = torch.tensor(np.random.randint(0, 1, (b_size, self.gan.label_shape)), requires_grad=False).float().to(self.device)
+                if self.gan.label_shape is not None:
+                    random_labels = torch.tensor(np.random.randint(0, 1, (b_size, self.gan.label_shape)), requires_grad=False).float().to(self.device)
+                else:
+                    random_labels = None
                 # Generate fake image batch with generator
                 fake = self.gan.generator(noise, random_labels)
-                true_.fill_(0)
+                #true_.fill_(0)
                 # Classify all fake batch with D
-                output = self.gan.discriminator(fake.detach(), random_labels)
+                fake_predicted = self.gan.discriminator(fake.detach(), random_labels)
+                d_z1s.append(fake_predicted.mean().cpu().item())
                 # Calculate D's loss on the all-fake batch
-                d_loss_fake = self.gan.__class__.loss(output, true_)
+                #d_loss_fake = self.gan.__class__.loss(output, true_)
+
+                d_loss = self.gan.__class__.discriminator_loss(true_predicted, fake_predicted)
                 # Calculate the gradients for this batch, accumulated (summed) with previous gradients
-                d_loss_fake.backward()
-                d_z1s.append(output.mean().cpu().item())
+                #d_loss_fake.backward()
+                d_loss.backward()
+
                 # Compute error of D as sum over the fake and the real batches
-                d_loss = d_loss_true + d_loss_fake
+                #d_loss = d_loss_true + d_loss_fake
                 # Update D
                 d_optimizer.step()
 
@@ -228,14 +246,16 @@ class GanModel:
                 # self.gan.generator.train()
                 # self.gan.discriminator.eval()
                 g_optimizer.zero_grad()
-                true_.fill_(1)  # fake labels are real for generator cost
+                # true_.fill_(1)  # fake labels are real for generator cost
                 # Since we just updated D, perform another forward pass of all-fake batch through D
-                output = self.gan.discriminator(fake, random_labels)
+                fake_predicted = self.gan.discriminator(fake, random_labels)
+                d_z2s.append(fake_predicted.mean().cpu().item())
                 # Calculate G's loss based on this output
-                g_loss = self.gan.__class__.loss(output, true_)
+                #g_loss = self.gan.__class__.loss(output, true_)
+                g_loss = self.gan.__class__.generator_loss(fake_predicted)
                 # Calculate gradients for G
                 g_loss.backward()
-                d_z2s.append(output.mean().cpu().item())
+
                 # Update G
                 g_optimizer.step()
 
@@ -318,7 +338,10 @@ class GanModel:
     #     return self.conditional_vae(X, y)[0]
 
     def generate_from_t_sampled(self, t_sampled, label):
-        label = torch.Tensor(label).float().to(self.device)
+        if self.gan.label_shape is not None:
+            label = torch.Tensor(label).float().to(self.device)
+        else:
+            label = None
         # #print('label', label.shape)
         t_sampled = torch.Tensor(t_sampled).float().to(self.device)
         #print('t_sampled', t_sampled.shape)
@@ -341,7 +364,8 @@ def train_gan(config):
     from torch.utils.data import DataLoader, random_split
     dataset = CelebaDataset(config.ANNOTATION_DATA_PATH, config.DATA_PATH,
                             transform=data_transforms)
-    config.VAE_PARAMS['label_shape'] = len(dataset[0][1])
+    if config.USE_LABELS:
+        config.VAE_PARAMS['label_shape'] = len(dataset[0][1])
     train_size = int(len(dataset) * 0.9)
     test_size = len(dataset) - train_size
     train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
