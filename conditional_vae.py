@@ -171,7 +171,7 @@ class ConditionalVAE(nn.Module):
         latent_t = t_mean + torch.exp(t_log_var / 2) * epsilon
         return latent_t
 
-    def forward(self, x, label):
+    def forward(self, x, label=None):
         hidden = self.encoder(x, label)
         cond_t_mean = self.get_cond_t_mean(hidden)
         cond_t_log_var = self.get_cond_t_log_var(hidden)

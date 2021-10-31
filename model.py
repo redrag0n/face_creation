@@ -171,7 +171,7 @@ class GanModel:
         self.model_save_path = model_save_path
         self.example_count = 25
 
-    def fit(self, train_dataloader, test_dataloader=None, max_epochs=10, lr=0.01, save_model=False):
+    def fit(self, train_dataloader, test_dataloader=None, max_epochs=10, lr=0.01, save_model=False, beta=(0.9, 0.999)):
         d_losses = list()
         g_losses = list()
 
@@ -179,8 +179,8 @@ class GanModel:
         d_z1s = list()
         d_z2s = list()
         #img_list = list()
-        g_optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, self.gan.generator.parameters()), lr=lr, weight_decay=0.0001)
-        d_optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, self.gan.discriminator.parameters()), lr=lr, weight_decay=0.0001)
+        g_optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, self.gan.generator.parameters()), lr=lr, betas=beta)
+        d_optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, self.gan.discriminator.parameters()), lr=lr, betas=beta)
 
         self._test_noise = np.random.normal(size=(self.example_count, self.gan.latent_dim_size))
         if self.gan.label_shape is not None:
@@ -230,10 +230,10 @@ class GanModel:
                 # Calculate D's loss on the all-fake batch
                 #d_loss_fake = self.gan.__class__.loss(output, true_)
 
-                d_loss = self.gan.__class__.discriminator_loss(true_predicted, fake_predicted)
+                d_loss = self.gan.discriminator_loss(true_predicted, fake_predicted)
                 # Calculate the gradients for this batch, accumulated (summed) with previous gradients
                 #d_loss_fake.backward()
-                d_loss.backward()
+                #d_loss.backward()
 
                 # Compute error of D as sum over the fake and the real batches
                 #d_loss = d_loss_true + d_loss_fake
@@ -252,9 +252,9 @@ class GanModel:
                 d_z2s.append(fake_predicted.mean().cpu().item())
                 # Calculate G's loss based on this output
                 #g_loss = self.gan.__class__.loss(output, true_)
-                g_loss = self.gan.__class__.generator_loss(fake_predicted)
+                g_loss = self.gan.generator_loss(fake_predicted)
                 # Calculate gradients for G
-                g_loss.backward()
+                #g_loss.backward()
 
                 # Update G
                 g_optimizer.step()
@@ -369,7 +369,8 @@ def train_gan(config):
     train_size = int(len(dataset) * 0.9)
     test_size = len(dataset) - train_size
     train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
-    train_dataloader = DataLoader(train_dataset, config.BATCH_SIZE, shuffle=True)
-    test_dataloader = DataLoader(test_dataset, config.BATCH_SIZE, shuffle=True)
+    train_dataloader = DataLoader(train_dataset, config.BATCH_SIZE, shuffle=True, num_workers=config.NUM_WORKERS)
+    test_dataloader = DataLoader(test_dataset, config.BATCH_SIZE, shuffle=True, num_workers=config.NUM_WORKERS)
     gan_model = GanModel(config.VAE_PARAMS, model_save_path=config.MODEL_SAVE_PATH, device=config.DEVICE)
-    gan_model.fit(train_dataloader, test_dataloader, save_model=True, lr=config.LEARNING_RATE, max_epochs=config.MAX_EPOCHS)
+    gan_model.fit(train_dataloader, test_dataloader, save_model=True, lr=config.LEARNING_RATE,
+                  max_epochs=config.MAX_EPOCHS, beta=config.BETA)

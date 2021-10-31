@@ -17,10 +17,12 @@ VAE_PARAMS = {
     'base_filters': 64,
     'kernel_size': (5, 5),
     'label_resize_shape': 32,
-    'use_add_layer': True
+    'use_add_layer': True,
+    'loss_f': 'bce'
 }
 RECONSTRUCTION_WEIGHT = 1000
 USE_LABELS = False
+LOSS_FUNCTION = 'bce'
 
 MODEL_SAVE_PATH = f'{PROJECT_DIR}/models/'
 
@@ -28,4 +30,6 @@ BATCH_SIZE = 32
 MAX_EPOCHS = 15
 LEARNING_RATE = 0.001
 DEVICE = 'cpu'
+NUM_WORKERS = 1
+BETA = (0.5, 0.999)
 #DEVICE = 'cuda'
