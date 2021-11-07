@@ -13,7 +13,7 @@ VAE_PARAMS = {
     'latent_dim_size': 16,
     'data_shape': IMG_SHAPE,
     'label_shape': None,
-    'layer_count': 4,
+    'layer_count': 6,
     'base_filters': 64,
     'kernel_size': (5, 5),
     'label_resize_shape': 32,
@@ -30,6 +30,6 @@ BATCH_SIZE = 32
 MAX_EPOCHS = 15
 LEARNING_RATE = 0.001
 DEVICE = 'cpu'
-NUM_WORKERS = 1
+NUM_WORKERS = 0
 BETA = (0.5, 0.999)
 #DEVICE = 'cuda'

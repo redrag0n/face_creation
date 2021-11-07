@@ -161,6 +161,8 @@ class GanModel:
             self.gan = GAN(**gan_params)
         else:
             self.gan = gan_model
+        #print(self.gan)
+        #print(summary(self.gan, None))
         print('Model parameters:', sum(p.numel() for p in self.gan.parameters() if p.requires_grad))
         if torch.cuda.device_count() > 1:
             print("Let's use", torch.cuda.device_count(), "GPUs!")
@@ -345,8 +347,10 @@ class GanModel:
         # #print('label', label.shape)
         t_sampled = torch.Tensor(t_sampled).float().to(self.device)
         #print('t_sampled', t_sampled.shape)
-        self.gan.generator.eval()
-        return sigmoid(self.gan.generator(t_sampled, label).detach().cpu().numpy())
+        #self.gan.generator.eval()
+        res = sigmoid(self.gan.generator(t_sampled, label).detach().cpu().numpy())
+        res = (res - np.min(res)) / (np.max(res) - np.min(res))
+        return res
 
     def generate_random_with_label(self, label):
         t_sampled = np.random.normal(size=(len(label), self.gan.latent_dim_size))

@@ -33,7 +33,7 @@ class Encoder(nn.Module):
             self.encoder_layers.append(nn.Conv2d(prev_filters, next_filters, self.kernel_size,
                                                  stride=(2, 2)))
             self.encoder_layers.append(torch.nn.BatchNorm2d(next_filters))
-            self.encoder_layers.append(torch.nn.ReLU())
+            self.encoder_layers.append(torch.nn.LeakyReLU(negative_slope=0.2))
 
         self.encoder_layers = nn.ModuleList(self.encoder_layers)
         self.w = self.data_shape[1] // (2 ** self.layer_count)
