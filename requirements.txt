@@ -9,4 +9,3 @@ matplotlib
 tqdm
 xlrd
 openpyxl
-torchsummary

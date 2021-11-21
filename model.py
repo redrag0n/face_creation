@@ -6,9 +6,8 @@ import torch
 import json
 import numpy as np
 import pandas as pd
-from conditional_vae import ConditionalVAE
-from gan import GAN
-import torchvision.utils as vutils
+from models.conditional_vae import ConditionalVAE
+from models.gan import GAN
 
 
 def sigmoid(x):
@@ -136,7 +135,7 @@ class VaeModel:
 
 
 def train_vae(config):
-    from celeba_dataset import CelebaDataset, IMG_SHAPE, data_transforms
+    from celeba_dataset import CelebaDataset, data_transforms
     from torch.utils.data import DataLoader, random_split
     dataset = CelebaDataset(config.ANNOTATION_DATA_PATH, config.DATA_PATH,
                             transform=data_transforms)
@@ -182,7 +181,7 @@ class GanModel:
         d_z2s = list()
         #img_list = list()
         g_optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, self.gan.generator.parameters()), lr=lr, betas=beta)
-        d_optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, self.gan.discriminator.parameters()), lr=lr, betas=beta)
+        d_optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, self.gan.discriminator.parameters()), lr=lr / 10, betas=beta)
 
         self._test_noise = np.random.normal(size=(self.example_count, self.gan.latent_dim_size))
         if self.gan.label_shape is not None:
@@ -358,13 +357,13 @@ class GanModel:
 
     @staticmethod
     def load(model_path, device='cpu'):
-        model = torch.load(model_path, map_location=torch.device('cpu'))
+        model = torch.load(model_path, map_location=torch.device(device))
         model.eval()
         return GanModel(gan_model=model, model_save_path=model_path, device=device)
 
 
 def train_gan(config):
-    from celeba_dataset import CelebaDataset, IMG_SHAPE, data_transforms
+    from celeba_dataset import CelebaDataset, data_transforms
     from torch.utils.data import DataLoader, random_split
     dataset = CelebaDataset(config.ANNOTATION_DATA_PATH, config.DATA_PATH,
                             transform=data_transforms)

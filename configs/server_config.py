@@ -23,7 +23,7 @@ VAE_PARAMS = {
     'data_shape': IMG_SHAPE,
     'label_shape': None,
     'layer_count': 4,
-    'base_filters': 64,
+    'base_filters': 32,
     'kernel_size': (3, 3),
     'label_resize_shape': 64,
     'use_add_layer': True,
