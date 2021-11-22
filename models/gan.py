@@ -20,51 +20,44 @@ def weights_init(m):
         nn.init.constant_(m.bias.data, 0)
 
 
-class Discriminator(nn.Module):
-    def __init__(self, data_shape, label_shape, layer_count=3, base_filters=32, kernel_size=(5, 5),
-                 label_resize_shape=100, use_add_layer=False, loss_f='bce'):
-        nn.Module.__init__(self)
-        # self.base = Encoder(1./2, data_shape, label_shape, layer_count, base_filters // 8, kernel_size,
-        #                     label_resize_shape // 2, use_add_layer)
-        self.base = Encoder(1. / 2, data_shape, label_shape, layer_count + 1, base_filters * 2, kernel_size,
-                            label_resize_shape // 2, use_add_layer)
-        self.loss_f = loss_f
-        self.apply(weights_init)
-
-    def forward(self, x, y):
-        if self.loss_f == 'bce':
-            return torch.sigmoid(self.base(x, y)).view(-1)
-        else:
-            return self.base(x, y).view(-1)
-
-
-class Generator(nn.Module):
-    def __init__(self, latent_dim_size, data_shape, label_shape, layer_count=3, base_filters=32, kernel_size=(5, 5),
-                 label_resize_shape=100, use_add_layer=False):
-        nn.Module.__init__(self)
-        self.base = Decoder(latent_dim_size, data_shape, label_shape, layer_count, base_filters, kernel_size,
-                            label_resize_shape, use_add_layer)
-        self.apply(weights_init)
-
-    def forward(self, x, y):
-        #return torch.sigmoid(self.base(x, y)).view(-1)
-        #return torch.tanh(self.base(x, y))
-        return self.base(x, y)
+# class Discriminator(nn.Module):
+#     def __init__(self, data_shape, label_shape, layer_count=3, base_filters=32, kernel_size=(5, 5),
+#                  label_resize_shape=100, use_add_layer=False, loss_f='bce'):
+#         nn.Module.__init__(self)
+#         # self.base = Encoder(1./2, data_shape, label_shape, layer_count, base_filters // 8, kernel_size,
+#         #                     label_resize_shape // 2, use_add_layer)
+#         self.base = Encoder(1. / 2, data_shape, label_shape, layer_count + 1, base_filters * 2, kernel_size,
+#                             label_resize_shape // 2, use_add_layer)
+#         self.loss_f = loss_f
+#         self.apply(weights_init)
+#
+#     def forward(self, x, y):
+#         if self.loss_f == 'bce':
+#             return torch.sigmoid(self.base(x, y)).view(-1)
+#         else:
+#             return self.base(x, y).view(-1)
+#
+#
+# class Generator(nn.Module):
+#     def __init__(self, latent_dim_size, data_shape, label_shape, layer_count=3, base_filters=32, kernel_size=(5, 5),
+#                  label_resize_shape=100, use_add_layer=False):
+#         nn.Module.__init__(self)
+#         self.base = Decoder(latent_dim_size, data_shape, label_shape, layer_count, base_filters, kernel_size,
+#                             label_resize_shape, use_add_layer)
+#         self.apply(weights_init)
+#
+#     def forward(self, x, y):
+#         #return torch.sigmoid(self.base(x, y)).view(-1)
+#         #return torch.tanh(self.base(x, y))
+#         return self.base(x, y)
 
 
 class GAN(nn.Module):
-    def __init__(self, latent_dim_size, data_shape, label_shape, layer_count=3, base_filters=32, kernel_size=(5, 5),
-                 label_resize_shape=100, use_add_layer=False, loss_f='bce', generator=None,
+    def __init__(self, generator_params=None, discriminator_params=None, loss_f='bce', generator=None,
                  discriminator=None):
         nn.Module.__init__(self)
-        self.latent_dim_size = latent_dim_size
-        self.data_shape = data_shape
-        self.label_shape = label_shape
-        self.layer_count = layer_count
-        self.base_filters = base_filters
-        self.kernel_size = kernel_size
-        self.label_resize_shape = label_resize_shape
-        self.use_add_layer = use_add_layer
+        self.generator_params = generator_params
+        self.discriminator_params = discriminator_params
         self.loss_f = loss_f
         self.generator = generator
         self.discriminator = discriminator
@@ -72,14 +65,14 @@ class GAN(nn.Module):
 
     def create_architecture(self):
         if self.generator is None:
-            self.generator = Generator(self.latent_dim_size, self.data_shape, self.label_shape, self.layer_count, self.base_filters, self.kernel_size,
-                                     self.label_resize_shape, self.use_add_layer)
+            self.generator = Decoder(**self.generator_params)
+            self.generator.apply(weights_init)
         print(self.generator)
         print('Generator parameters:', sum(p.numel() for p in self.generator.parameters() if p.requires_grad))
 
         if self.discriminator is None:
-            self.discriminator = Discriminator(self.data_shape, self.label_shape, self.layer_count, self.base_filters, self.kernel_size,
-                                               self.label_resize_shape, self.use_add_layer, loss_f=self.loss_f)
+            self.discriminator = Encoder(1, **self.discriminator_params)
+            self.discriminator.apply(weights_init)
         print(self.discriminator)
         print('Discriminator parameters:', sum(p.numel() for p in self.discriminator.parameters() if p.requires_grad))
 
@@ -126,17 +119,11 @@ class GAN(nn.Module):
     def save(self, model_save_dir, generator_name='generator', discriminator_name='discriminator'):
         if not os.path.isdir(model_save_dir):
             os.mkdir(model_save_dir)
-        self.generator.save(f'{model_save_dir}/{generator_name}')
-        self.discriminator.save(f'{model_save_dir}/{discriminator_name}')
+        torch.save(self.generator, f'{model_save_dir}/{generator_name}')
+        torch.save(self.discriminator, f'{model_save_dir}/{discriminator_name}')
         params = {
-            'latent_dim_size': self.latent_dim_size,
-            'data_shape': self.data_shape,
-            'label_shape': self.label_shape,
-            'layer_count': self.layer_count,
-            'base_filters': self.base_filters,
-            'kernel_size': self.kernel_size,
-            'label_resize_shape': self.label_resize_shape,
-            'use_add_layer': self.use_add_layer,
+            'generator_params': self.generator_params,
+            'discriminator_params': self.discriminator_params,
             'loss_f': self.loss_f
         }
         with open(f'{model_save_dir}/params.json', mode='w') as out:
@@ -151,4 +138,4 @@ class GAN(nn.Module):
         params['generator'].eval()
         params['discriminator'] = torch.load(f'{model_save_dir}/{discriminator_name}', map_location=torch.device(device))
         params['discriminator'].eval()
-        return Generator(**params)
+        return GAN(**params)

@@ -1,3 +1,4 @@
+import copy
 from celeba_dataset import IMG_SHAPE
 
 
@@ -23,16 +24,35 @@ VAE_PARAMS = {
     'data_shape': IMG_SHAPE,
     'label_shape': None,
     'layer_count': 4,
-    'base_filters': 32,
+    'base_filters': 64,
     'kernel_size': (3, 3),
     'label_resize_shape': 64,
+    'use_add_layer': False
+}
+
+GENERATOR_PARAMS = copy.deepcopy(VAE_PARAMS)
+
+DISCRIMINATOR_PARAMS = {
+    # 'latent_dim_size': 1,
+    'data_shape': IMG_SHAPE,
+    'label_shape': None,
+    'layer_count': 4,
+    'base_filters': 64,
+    'kernel_size': (3, 3),
+    'label_resize_shape': 32,
     'use_add_layer': True,
+    'last_non_linearity': 'sigmoid'
+}
+
+GAN_PARAMS = {
+    'generator_params': GENERATOR_PARAMS,
+    'discriminator_params': DISCRIMINATOR_PARAMS,
     'loss_f': 'bce'
 }
 RECONSTRUCTION_WEIGHT = 1000
 USE_LABELS = False
 
-MODEL_SAVE_PATH = f'{PROJECT_DIR}/models/'
+MODEL_SAVE_PATH = f'{PROJECT_DIR}/trained_models/'
 
 BATCH_SIZE = 32
 MAX_EPOCHS = 100

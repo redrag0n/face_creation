@@ -1,5 +1,5 @@
 from configs import server_config
-from model import train
+from model import train_vae
 
 
-train(server_config)
+train_vae(server_config)

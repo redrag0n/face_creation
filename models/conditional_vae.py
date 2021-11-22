@@ -1,134 +1,20 @@
+import os
+import json
 import numpy as np
+import setuptools
 import torch
 from torch import nn
 import torch.nn.functional as F
 from math import ceil, floor
-
-
-# class Encoder(nn.Module):
-#     def __init__(self, latent_dim_size, data_shape, label_shape, layer_count=3, base_filters=32, kernel_size=(5, 5),
-#                  label_resize_shape=100, use_add_layer=False):
-#         nn.Module.__init__(self)
-#         self.latent_dim_size = latent_dim_size
-#         self.data_shape = data_shape
-#         self.label_shape = label_shape
-#         self.layer_count = layer_count
-#         self.base_filters = base_filters
-#         self.kernel_size = kernel_size
-#         self.label_resize_shape = label_resize_shape
-#         self.use_add_layer = use_add_layer
-#         self.create_architecture()
-#
-#     def create_architecture(self):
-#         self.encoder_layers = list()
-#         padding = (ceil((self.kernel_size[0] - 1) / 2), floor((self.kernel_size[0] - 1) / 2),
-#                    ceil((self.kernel_size[1] - 1) / 2), floor((self.kernel_size[1] - 1) / 2))
-#         for layer_i in range(self.layer_count):
-#             prev_filters = self.base_filters * 2 ** (layer_i - 1) if layer_i > 0 else 3
-#             next_filters = self.base_filters * 2 ** layer_i
-#
-#             self.encoder_layers.append(nn.ConstantPad2d(padding, 0))
-#             self.encoder_layers.append(nn.Conv2d(prev_filters, prev_filters, self.kernel_size,
-#                                                  padding='same'))
-#             self.encoder_layers.append(nn.Conv2d(prev_filters, next_filters, self.kernel_size,
-#                                                  stride=(2, 2)))
-#             self.encoder_layers.append(torch.nn.BatchNorm2d(next_filters))
-#             self.encoder_layers.append(torch.nn.LeakyReLU(negative_slope=0.2))
-#
-#         self.encoder_layers = nn.ModuleList(self.encoder_layers)
-#         self.w = self.data_shape[1] // (2 ** self.layer_count)
-#         self.h = self.data_shape[2] // (2 ** self.layer_count)
-#         self.c = self.base_filters * (2 ** (self.layer_count - 1))
-#         # self.c = self.base_filters
-#         # print(self.w, self.h, self.c)
-#         if self.label_shape is not None:
-#             self.fc_e_label = nn.Linear(self.label_shape, self.label_resize_shape)
-#             self.bn_e_label = torch.nn.BatchNorm1d(self.label_resize_shape)
-#             self.fc_e = nn.Linear(self.w * self.c * self.h + self.label_resize_shape, int(self.latent_dim_size * 2))
-#         else:
-#             self.fc_e = nn.Linear(self.w * self.c * self.h, int(self.latent_dim_size * 2))
-#
-#     def forward(self, data, label=None):
-#         res = data
-#         # print(res.shape)
-#         for layer in self.encoder_layers:
-#             # print(layer)
-#             res = layer(res)
-#             # print(res.shape)
-#
-#         res = torch.flatten(res, start_dim=1)
-#
-#         if self.label_shape is not None:
-#             label_enc = F.relu(self.bn_e_label(self.fc_e_label(label)))
-#             res = torch.cat([res, label_enc], dim=1)
-#         res = self.fc_e(res)
-#         return res
-#
-#
-# class Decoder(nn.Module):
-#     def __init__(self, latent_dim_size, data_shape, label_shape, layer_count=3, base_filters=32, kernel_size=(5, 5),
-#                  label_resize_shape=100, use_add_layer=False):
-#         nn.Module.__init__(self)
-#         self.latent_dim_size = latent_dim_size
-#         self.data_shape = data_shape
-#         self.label_shape = label_shape
-#         self.layer_count = layer_count
-#         self.base_filters = base_filters
-#         self.kernel_size = kernel_size
-#         self.label_resize_shape = label_resize_shape
-#         self.use_add_layer = use_add_layer
-#         self.create_architecture()
-#
-#     def create_architecture(self):
-#         self.decoder_layers = list()
-#         padding = ceil((self.kernel_size[0] - 1) / 2)
-#         # print(padding)
-#
-#         self.w = self.data_shape[1] // (2 ** self.layer_count)
-#         self.h = self.data_shape[2] // (2 ** self.layer_count)
-#         self.c = self.base_filters * (2 ** (self.layer_count - 1))
-#
-#         if self.label_shape is not None:
-#             self.fc_d_label = nn.Linear(self.label_shape, self.label_resize_shape)
-#             self.bn_d_label = torch.nn.BatchNorm1d(self.label_resize_shape)
-#             self.fc_d = nn.Linear(self.latent_dim_size + self.label_resize_shape, self.w * self.c * self.h)
-#         else:
-#             self.fc_d = nn.Linear(self.latent_dim_size, self.w * self.c * self.h)
-#         self.bn_d = torch.nn.BatchNorm1d(self.w * self.c * self.h)
-#         for layer_i in range(self.layer_count - 1, -1, -1):
-#             prev_filters = self.base_filters * 2 ** layer_i
-#             next_filters = self.base_filters * 2 ** (layer_i - 1) if layer_i > 0 else 3
-#
-#             self.decoder_layers.append(nn.ConvTranspose2d(prev_filters, prev_filters, self.kernel_size,
-#                                                           padding=padding))
-#             self.decoder_layers.append(nn.ConvTranspose2d(prev_filters, next_filters, self.kernel_size,
-#                                                           stride=(2, 2), padding=padding,
-#                                                           output_padding=1))
-#
-#             if layer_i != 0:
-#                 self.decoder_layers.append(torch.nn.BatchNorm2d(next_filters))
-#                 self.decoder_layers.append(torch.nn.ReLU())
-#         self.decoder_layers = nn.ModuleList(self.decoder_layers)
-#
-#     def forward(self, latent, label=None):
-#         res = latent
-#         if self.label_shape is not None:
-#             label = F.relu(self.bn_d_label(self.fc_d_label(label)))
-#             res = torch.cat([res, label], dim=1)
-#         res = F.relu(self.bn_d(self.fc_d(res)))
-#         res = torch.reshape(res, (-1, self.c, self.w, self.h))
-#         # print(res.shape)
-#
-#         for layer in self.decoder_layers:
-#             res = layer(res)
-#             # print(res.shape)
-#
-#         return res
+from models.encoder import Encoder
+from models.decoder import Decoder
 
 
 class ConditionalVAE(nn.Module):
-    def __init__(self, latent_dim_size, data_shape, label_shape, layer_count=3, base_filters=32, kernel_size=(5, 5),
-                 label_resize_shape=100, use_add_layer=False):
+    def __init__(self, latent_dim_size=None, data_shape=None, label_shape=None,
+                 layer_count=3, base_filters=32, kernel_size=(5, 5),
+                 label_resize_shape=100, use_add_layer=False, last_non_linearity=None,
+                 encoder=None, decoder=None):
         nn.Module.__init__(self)
         self.latent_dim_size = latent_dim_size
         self.data_shape = data_shape
@@ -138,13 +24,20 @@ class ConditionalVAE(nn.Module):
         self.kernel_size = kernel_size
         self.label_resize_shape = label_resize_shape
         self.use_add_layer = use_add_layer
+        self.last_non_linearity = last_non_linearity
+        self.encoder = encoder
+        self.decoder = decoder
         self.create_architecture()
 
     def create_architecture(self):
-        self.encoder = Encoder(self.latent_dim_size, self.data_shape, self.label_shape, self.layer_count, self.base_filters, self.kernel_size,
-                                     self.label_resize_shape, self.use_add_layer)
-        self.decoder = Decoder(self.latent_dim_size, self.data_shape, self.label_shape, self.layer_count, self.base_filters, self.kernel_size,
-                               self.label_resize_shape, self.use_add_layer)
+        if self.encoder is None:
+            self.encoder = Encoder(self.latent_dim_size * 2, self.data_shape,
+                                   self.label_shape, self.layer_count, self.base_filters, self.kernel_size,
+                                   self.label_resize_shape, self.use_add_layer, self.last_non_linearity)
+        if self.decoder is None:
+            self.decoder = Decoder(self.latent_dim_size, self.data_shape, self.label_shape,
+                                   self.layer_count, self.base_filters, self.kernel_size,
+                                   self.label_resize_shape, self.use_add_layer, self.last_non_linearity)
 
     def get_cond_t_mean(self, hidden):
         return hidden[:, :self.latent_dim_size]
@@ -202,3 +95,33 @@ class ConditionalVAE(nn.Module):
     def log_gradients(self):
         print('encoder', self.encoder.encoder_layers[1].weight.grad[0])
         print('decoder', self.decoder.decoder_layers[1].weight.grad[0])
+
+    def save(self, model_save_dir, encoder_name='encoder', decoder_name='generator'):
+        if not os.path.isdir(model_save_dir):
+            os.mkdir(model_save_dir)
+        torch.save(self.decoder, f'{model_save_dir}/{decoder_name}')
+        torch.save(self.encoder, f'{model_save_dir}/{encoder_name}')
+        params = {
+            'latent_dim_size': self.latent_dim_size,
+            'data_shape': self.data_shape,
+            'label_shape': self.label_shape,
+            'layer_count': self.layer_count,
+            'base_filters': self.base_filters,
+            'kernel_size': self.kernel_size,
+            'label_resize_shape': self.label_resize_shape,
+            'use_add_layer': self.use_add_layer,
+            'last_non_linearity': self.last_non_linearity,
+        }
+        with open(f'{model_save_dir}/params.json', mode='w') as out:
+            json.dump(params, out, ensure_ascii=False)
+
+    @staticmethod
+    def load(model_save_dir, device='cpu',
+             encoder_name='encoder', decoder_name='generator'):
+        with open(f'{model_save_dir}/params.json', mode='r') as in_:
+            params = json.load(in_)
+        params['encoder'] = torch.load(f'{model_save_dir}/{encoder_name}', map_location=torch.device(device))
+        params['encoder'].eval()
+        params['decoder'] = torch.load(f'{model_save_dir}/{decoder_name}', map_location=torch.device(device))
+        params['decoder'].eval()
+        return ConditionalVAE(**params)
