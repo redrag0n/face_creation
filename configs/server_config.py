@@ -60,4 +60,10 @@ LEARNING_RATE = 0.0002
 DEVICE = 'cuda'
 NUM_WORKERS = 4
 BETA = (0.5, 0.999)
-#DEVICE = 'cuda'
+
+SCHEDULER_PARAMS = {
+    'cycle_size': 100,
+    'base_lr': LEARNING_RATE,
+    'down_coef': 2,
+    'dif_threshold': 0.2
+}
