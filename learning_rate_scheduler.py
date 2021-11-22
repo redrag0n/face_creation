@@ -30,7 +30,9 @@ class CompareLearningRateScheduler(BaseLearningRateScheduler):
                 new_generator_lr = self.base_lr
                 new_discriminator_lr = new_generator_lr / (self.down_coef * (old_generator_lr / old_discriminator_lr))
 
-        elif (np.mean(real_discriminator_preds) + self.dif_threshold < np.mean(fake_discriminator_preds)) or (np.mean(fake_discriminator_preds) - 0.5 > self.dif_threshold):
+        elif ((np.mean(real_discriminator_preds) + self.dif_threshold < np.mean(fake_discriminator_preds)) or \
+              (np.mean(fake_discriminator_preds) - 0.5 > self.dif_threshold) or
+              (np.mean(real_discriminator_preds)) < 0.5):
             if old_discriminator_lr == old_generator_lr:
                 new_generator_lr = self.base_lr / self.down_coef
                 new_discriminator_lr = self.base_lr
