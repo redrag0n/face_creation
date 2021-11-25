@@ -208,6 +208,8 @@ class GanModel:
                 # Discriminator train
                 X, y = X.to(self.device), y.to(self.device)
                 b_size = X.shape[0]
+                # self.gan.generator.train()
+                # self.gan.discriminator.train()
                 d_optimizer.zero_grad()
                 true_predicted = self.gan.discriminator(X, y).view(-1)
                 d_xs.append(true_predicted.mean().cpu().item())  # average discriminator prediction on true images
@@ -278,7 +280,7 @@ class GanModel:
                                                                       d_optimizer.param_groups[0]['lr'],
                                                                       d_xs[-scheduler.cycle_size:],
                                                                       d_z2s[-scheduler.cycle_size:])
-                    print(f'G: lr:{generator_lr}\tmean: {np.mean(d_z2s[-scheduler.cycle_size:])}; D lr%{discriminator_lr}\tmean:{np.mean(d_xs[-scheduler.cycle_size:])}')
+                    print(f'G: lr: {generator_lr}\tmean: {np.mean(d_z2s[-scheduler.cycle_size:])}; D lr: {discriminator_lr}\tmean:{np.mean(d_xs[-scheduler.cycle_size:])}')
                     g_optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, self.gan.generator.parameters()),
                                                    lr=generator_lr, betas=beta)
                     d_optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, self.gan.discriminator.parameters()),
@@ -353,6 +355,7 @@ class GanModel:
     #     return self.conditional_vae(X, y)[0]
 
     def generate_from_t_sampled(self, t_sampled, label):
+        self.gan.generator.eval()
         if self.gan.generator.label_shape is not None:
             label = torch.Tensor(label).float().to(self.device)
         else:
@@ -361,7 +364,7 @@ class GanModel:
         t_sampled = torch.Tensor(t_sampled).float().to(self.device)
         #print('t_sampled', t_sampled.shape)
         #self.gan.generator.eval()
-        res = sigmoid(self.gan.generator(t_sampled, label).detach().cpu().numpy())
+        res = self.gan.generator(t_sampled, label).detach().cpu().numpy()
         res = (res - np.min(res)) / (np.max(res) - np.min(res))
         return res
 

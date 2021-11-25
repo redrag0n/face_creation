@@ -36,7 +36,7 @@ DISCRIMINATOR_PARAMS = {
     # 'latent_dim_size': 1,
     'data_shape': IMG_SHAPE,
     'label_shape': None,
-    'layer_count': 4,
+    'layer_count': 5,
     'base_filters': 64,
     'kernel_size': (3, 3),
     'label_resize_shape': 32,
@@ -54,7 +54,7 @@ USE_LABELS = False
 
 MODEL_SAVE_PATH = f'{PROJECT_DIR}/trained_models/'
 
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 MAX_EPOCHS = 100
 LEARNING_RATE = 0.0002
 DEVICE = 'cuda'

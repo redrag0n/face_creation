@@ -49,7 +49,7 @@ class Decoder(nn.Module):
 
             if layer_i != 0:
                 self.decoder_layers.append(torch.nn.BatchNorm2d(next_filters))
-                self.decoder_layers.append(torch.nn.ReLU())
+                self.decoder_layers.append(torch.nn.LeakyReLU(negative_slope=0.2))
         self.decoder_layers = nn.ModuleList(self.decoder_layers)
 
     def forward(self, latent, label=None):
