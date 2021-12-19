@@ -75,7 +75,8 @@ class VaeModel:
                 self.save_model_data(epoch, test_dataloader, test_losses, train_losses)
 
     def save_model_data(self, epoch, test_dataloader, test_losses, train_losses):
-        self.conditional_vae.save(self.model_save_path + '/' + 'epoch' + str(epoch))
+        if (epoch + 1) % 10 == 0:
+            self.conditional_vae.save(self.model_save_path + '/' + 'epoch' + str(epoch))
         metric_df = pd.DataFrame({'epoch': list(range(epoch + 1)), 'train': train_losses}).set_index('epoch')
         if test_dataloader is not None:
             metric_df['test'] = test_losses
@@ -130,8 +131,7 @@ class VaeModel:
 
     @staticmethod
     def load(model_path, device='cpu'):
-        model = torch.load(model_path, map_location=torch.device('cpu'))
-        model.eval()
+        model = ConditionalVAE.load(model_path, device='cpu')
         return VaeModel(cond_vae_model=model, model_save_path=model_path, device=device)
 
 
@@ -309,7 +309,8 @@ class GanModel:
                 self.save_model_data(epoch, test_dataloader, d_losses, g_losses, d_xs, d_z1s, d_z2s)
 
     def save_model_data(self, epoch, test_dataloader, d_losses, g_losses, d_xs, d_z1s, d_z2s):
-        self.gan.save(self.model_save_path + '/' + 'epoch' + str(epoch))
+        if (epoch + 1) % 10 == 0:
+            self.gan.save(self.model_save_path + '/' + 'epoch' + str(epoch))
 
         metric_df = pd.DataFrame({'epoch': list(range(epoch + 1)), 'discriminator': d_losses, 'generator': g_losses}).set_index('epoch')
 
@@ -364,8 +365,8 @@ class GanModel:
         t_sampled = torch.Tensor(t_sampled).float().to(self.device)
         #print('t_sampled', t_sampled.shape)
         #self.gan.generator.eval()
-        res = self.gan.generator(t_sampled, label).detach().cpu().numpy()
-        res = (res - np.min(res)) / (np.max(res) - np.min(res))
+        res = sigmoid(self.gan.generator(t_sampled, label).detach().cpu().numpy())
+        #res = (res - np.min(res)) / (np.max(res) - np.min(res))
         return res
 
     def generate_random_with_label(self, label):
@@ -393,5 +394,25 @@ def train_gan(config):
     test_dataloader = DataLoader(test_dataset, config.BATCH_SIZE, shuffle=True, num_workers=config.NUM_WORKERS)
     scheduler = CompareLearningRateScheduler(**config.SCHEDULER_PARAMS)
     gan_model = GanModel(config.GAN_PARAMS, model_save_path=config.MODEL_SAVE_PATH, device=config.DEVICE)
+    gan_model.fit(train_dataloader, test_dataloader, save_model=True, lr=config.LEARNING_RATE,
+                  max_epochs=config.MAX_EPOCHS, beta=config.BETA, scheduler=scheduler)
+
+
+def train_gan_with_pretrain_generator(config):
+    from celeba_dataset import CelebaDataset, data_transforms
+    from torch.utils.data import DataLoader, random_split
+    dataset = CelebaDataset(config.ANNOTATION_DATA_PATH, config.DATA_PATH,
+                            transform=data_transforms)
+    if config.USE_LABELS:
+        config.VAE_PARAMS['label_shape'] = len(dataset[0][1])
+    train_size = int(len(dataset) * 0.9)
+    test_size = len(dataset) - train_size
+    train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
+    train_dataloader = DataLoader(train_dataset, config.BATCH_SIZE, shuffle=True, num_workers=config.NUM_WORKERS)
+    test_dataloader = DataLoader(test_dataset, config.BATCH_SIZE, shuffle=True, num_workers=config.NUM_WORKERS)
+    scheduler = CompareLearningRateScheduler(**config.SCHEDULER_PARAMS)
+    gan = GAN(generator_params=config.GENERATOR_PARAMS, discriminator_params=config.DISCRIMINATOR_PARAMS, loss_f='bce')
+    gan.load_generator(config.PRETRAINED_GENERATOR_PATH, device=config.DEVICE)
+    gan_model = GanModel(gan_model=gan, model_save_path=config.MODEL_SAVE_PATH, device=config.DEVICE)
     gan_model.fit(train_dataloader, test_dataloader, save_model=True, lr=config.LEARNING_RATE,
                   max_epochs=config.MAX_EPOCHS, beta=config.BETA, scheduler=scheduler)

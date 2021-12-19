@@ -19,7 +19,7 @@ VAE_PARAMS = {
     'base_filters': 32,
     'kernel_size': (3, 3),
     'label_resize_shape': 32,
-    'use_add_layer': True
+    'use_add_layer': True,
 }
 
 GENERATOR_PARAMS = copy.deepcopy(VAE_PARAMS)
@@ -43,7 +43,7 @@ GAN_PARAMS = {
 }
 
 RECONSTRUCTION_WEIGHT = 1000
-USE_LABELS = False
+USE_LABELS = True
 
 MODEL_SAVE_PATH = f'{PROJECT_DIR}/trained_models'
 
@@ -61,3 +61,5 @@ SCHEDULER_PARAMS = {
     'dif_threshold': 0.2
 }
 #DEVICE = 'cuda'
+
+PRETRAINED_GENERATOR_PATH = f'{MODEL_SAVE_PATH}/pretrained/generator'

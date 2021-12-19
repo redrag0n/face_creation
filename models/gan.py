@@ -139,3 +139,7 @@ class GAN(nn.Module):
         params['discriminator'] = torch.load(f'{model_save_dir}/{discriminator_name}', map_location=torch.device(device))
         params['discriminator'].eval()
         return GAN(**params)
+
+    def load_generator(self, generator_path, device='cpu'):
+        self.generator = torch.load(generator_path, map_location=torch.device(device))
+

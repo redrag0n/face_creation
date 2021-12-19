@@ -61,6 +61,7 @@ class ConditionalVAE(nn.Module):
         device = 'cuda' if t_mean.is_cuda else 'cpu'
         epsilon = torch.tensor(np.random.standard_normal(t_mean.shape), requires_grad=False).float().to(device)
         #print(epsilon.is_cuda)
+        #print(t_mean.shape, t_log_var.shape)
         latent_t = t_mean + torch.exp(t_log_var / 2) * epsilon
         return latent_t
 

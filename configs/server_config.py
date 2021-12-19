@@ -20,13 +20,13 @@ DATA_PATH = f'{DATA_DIR}/img_align_celeba'
 #     'use_add_layer': True
 # }
 VAE_PARAMS = {
-    'latent_dim_size': 100,
+    'latent_dim_size': 200,
     'data_shape': IMG_SHAPE,
     'label_shape': None,
     'layer_count': 4,
     'base_filters': 64,
     'kernel_size': (3, 3),
-    'label_resize_shape': 64,
+    'label_resize_shape': 250,
     'use_add_layer': False
 }
 
@@ -36,7 +36,7 @@ DISCRIMINATOR_PARAMS = {
     # 'latent_dim_size': 1,
     'data_shape': IMG_SHAPE,
     'label_shape': None,
-    'layer_count': 5,
+    'layer_count': 4,
     'base_filters': 64,
     'kernel_size': (3, 3),
     'label_resize_shape': 32,
@@ -50,13 +50,13 @@ GAN_PARAMS = {
     'loss_f': 'bce'
 }
 RECONSTRUCTION_WEIGHT = 1000
-USE_LABELS = False
+USE_LABELS = True
 
 MODEL_SAVE_PATH = f'{PROJECT_DIR}/trained_models/'
 
 BATCH_SIZE = 64
-MAX_EPOCHS = 100
-LEARNING_RATE = 0.0002
+MAX_EPOCHS = 120
+LEARNING_RATE = 0.0001
 DEVICE = 'cuda'
 NUM_WORKERS = 4
 BETA = (0.5, 0.999)
@@ -67,3 +67,5 @@ SCHEDULER_PARAMS = {
     'down_coef': 2,
     'dif_threshold': 0.2
 }
+
+PRETRAINED_GENERATOR_PATH = f'{MODEL_SAVE_PATH}/pretrained/generator'

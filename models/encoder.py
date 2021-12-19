@@ -50,7 +50,7 @@ class Encoder(nn.Module):
         if self.label_shape is not None:
             self.fc_e_label = nn.Linear(self.label_shape, self.label_resize_shape)
             self.bn_e_label = torch.nn.BatchNorm1d(self.label_resize_shape)
-            self.fc_e = nn.Linear(self.w * self.c * self.h + self.label_resize_shape, int(self.latent_dim_size * 2))
+            self.fc_e = nn.Linear(self.w * self.c * self.h + self.label_resize_shape, self.latent_dim_size)
         else:
             self.fc_e = nn.Linear(self.w * self.c * self.h, self.latent_dim_size)
 
